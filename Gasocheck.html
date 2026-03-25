@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GasoCheck — Precios reales de gasolineras</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fuel:#f97316; --fuel-dark:#c2410c; --fuel-glow:rgba(249,115,22,0.15);
+    --bg:#09090f; --surface:#111118; --surface2:#18181f;
+    --border:rgba(255,255,255,0.07); --text:#ededf5; --muted:#64647a;
+    --green:#22c55e; --red:#ef4444; --yellow:#eab308; --blue:#3b82f6;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;min-height:100vh;overflow-x:hidden;}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(249,115,22,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(249,115,22,0.025) 1px,transparent 1px);background-size:44px 44px;pointer-events:none;z-index:0;}
+  body::after{content:'';position:fixed;top:-250px;left:50%;transform:translateX(-50%);width:800px;height:500px;background:radial-gradient(ellipse,rgba(249,115,22,0.09) 0%,transparent 70%);pointer-events:none;z-index:0;}
+  .wrap{position:relative;z-index:1;max-width:940px;margin:0 auto;padding:0 20px 80px;}
+
+  /* HEADER */
+  header{padding:44px 0 36px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);margin-bottom:36px;}
+  .logo{display:flex;align-items:center;gap:14px;}
+  .logo-icon{width:46px;height:46px;background:linear-gradient(135deg,var(--fuel),var(--fuel-dark));border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 0 24px var(--fuel-glow);flex-shrink:0;}
+  .logo-text{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;letter-spacing:-0.5px;}
+  .logo-text span{color:var(--fuel);}
+  .logo-sub{font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-top:2px;}
+  .live-badge{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:99px;padding:8px 16px;font-size:11px;color:var(--muted);}
+  .live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;flex-shrink:0;}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.5);}50%{box-shadow:0 0 0 5px rgba(34,197,94,0);}}
+
+  /* LOCATION CARD */
+  .loc-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:24px 28px;margin-bottom:24px;}
+  .loc-label{font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;}
+
+  /* Search box */
+  .search-wrap{position:relative;margin-bottom:12px;}
+  .search-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 46px 14px 18px;color:var(--text);font-family:'DM Mono',monospace;font-size:14px;outline:none;transition:border-color .2s,box-shadow .2s;}
+  .search-input:focus{border-color:var(--fuel);box-shadow:0 0 0 3px var(--fuel-glow);}
+  .search-input::placeholder{color:var(--muted);}
+  .search-clear{position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;display:none;padding:4px;line-height:1;}
+  .search-clear:hover{color:var(--text);}
+
+  /* Autocomplete */
+  .autocomplete{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--surface2);border:1px solid rgba(249,115,22,.25);border-radius:13px;overflow:hidden;z-index:200;box-shadow:0 16px 48px rgba(0,0,0,.7);display:none;}
+  .ac-item{padding:13px 18px;font-size:13px;cursor:pointer;display:flex;align-items:flex-start;gap:12px;transition:background .1s;border-bottom:1px solid var(--border);}
+  .ac-item:last-child{border-bottom:none;}
+  .ac-item:hover,.ac-item.focused{background:var(--fuel-glow);}
+  .ac-icon{font-size:15px;flex-shrink:0;margin-top:1px;}
+  .ac-name{font-weight:500;color:var(--text);font-size:13px;}
+  .ac-detail{font-size:11px;color:var(--muted);margin-top:2px;}
+  .ac-loading{padding:14px 18px;color:var(--muted);font-size:12px;text-align:center;}
+
+  /* Buttons */
+  .loc-btns{display:flex;gap:10px;flex-wrap:wrap;}
+  .btn-geo{flex:1;min-width:150px;background:linear-gradient(135deg,var(--fuel),var(--fuel-dark));border:none;border-radius:11px;padding:12px 20px;color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .15s;box-shadow:0 0 20px var(--fuel-glow);}
+  .btn-geo:hover{transform:translateY(-1px);box-shadow:0 6px 28px rgba(249,115,22,.35);}
+  .btn-geo:active{transform:translateY(0);}
+  .btn-geo:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+  .btn-secondary{background:var(--surface2);border:1px solid var(--border);border-radius:11px;padding:12px 18px;color:var(--muted);font-family:'DM Mono',monospace;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .15s;white-space:nowrap;}
+  .btn-secondary:hover{border-color:var(--fuel);color:var(--fuel);}
+  .loc-status{font-size:12px;color:var(--muted);margin-top:12px;min-height:18px;}
+  .loc-status b{color:var(--text);}
+
+  /* FILTERS */
+  .filter-row{display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap;align-items:center;}
+  .chip{background:var(--surface);border:1px solid var(--border);border-radius:99px;padding:8px 18px;font-size:12px;cursor:pointer;transition:all .15s;color:var(--muted);font-family:'DM Mono',monospace;white-space:nowrap;}
+  .chip:hover,.chip.active{border-color:var(--fuel);color:var(--fuel);background:var(--fuel-glow);}
+  .radius-select{background:var(--surface);border:1px solid var(--border);border-radius:99px;padding:8px 18px;font-size:12px;color:var(--muted);font-family:'DM Mono',monospace;cursor:pointer;outline:none;-webkit-appearance:none;appearance:none;transition:all .15s;}
+  .radius-select:focus{border-color:var(--fuel);color:var(--fuel);}
+
+  /* STATS */
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:28px;}
+  .stat{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;transition:border-color .2s;}
+  .stat:hover{border-color:rgba(249,115,22,.25);}
+  .stat-lbl{font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;}
+  .stat-val{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;}
+  .stat-val.g{color:var(--green);}.stat-val.o{color:var(--fuel);}.stat-val.r{color:var(--red);}
+  .stat-sub{font-size:10px;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+  /* RESULTS */
+  .results-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .results-lbl{font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;}
+  .sort-toggle{background:none;border:none;color:var(--muted);cursor:pointer;font-family:'DM Mono',monospace;font-size:11px;display:flex;align-items:center;gap:5px;transition:color .2s;}
+  .sort-toggle:hover{color:var(--fuel);}
+
+  /* CARDS */
+  .list{display:flex;flex-direction:column;gap:9px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:15px;padding:18px 22px;display:grid;grid-template-columns:40px 1fr auto;align-items:center;gap:18px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;animation:slideIn .35s both;}
+  @keyframes slideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;}
+  .card.r1::before{background:var(--green);}
+  .card.r2::before{background:var(--yellow);}
+  .card.r3::before{background:var(--fuel);}
+  .card:hover{border-color:rgba(249,115,22,.28);transform:translateX(4px);background:var(--surface2);}
+  .rank{width:36px;height:36px;border-radius:10px;font-family:'Syne',sans-serif;font-weight:800;font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .r1 .rank{background:rgba(34,197,94,.12);color:var(--green);}
+  .r2 .rank{background:rgba(234,179,8,.12);color:var(--yellow);}
+  .r3 .rank{background:rgba(249,115,22,.12);color:var(--fuel);}
+  .rN .rank{background:var(--surface2);color:var(--muted);}
+  .cinfo{min-width:0;}
+  .cname{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cmeta{display:flex;align-items:center;gap:12px;font-size:11px;color:var(--muted);flex-wrap:wrap;}
+  .cmeta b{color:var(--text);}
+  .cprice{text-align:right;flex-shrink:0;}
+  .cprice-val{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;}
+  .cprice-val.best{color:var(--green);}.cprice-val.worst{color:var(--red);}
+  .cprice-diff{font-size:10px;margin-top:2px;}
+  .cprice-diff.save{color:var(--green);}.cprice-diff.extra{color:var(--red);}
+  .cprice-lbl{font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;}
+
+  /* STATES */
+  .loading{display:none;flex-direction:column;align-items:center;gap:16px;padding:60px 20px;color:var(--muted);font-size:13px;}
+  .spinner{width:38px;height:38px;border:3px solid var(--border);border-top-color:var(--fuel);border-radius:50%;animation:spin .8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .loading-sub{font-size:11px;color:var(--muted);opacity:.7;}
+  .empty{text-align:center;padding:70px 20px;color:var(--muted);}
+  .empty-icon{font-size:52px;margin-bottom:18px;}
+  .empty-title{font-family:'Syne',sans-serif;font-weight:700;font-size:20px;color:var(--text);margin-bottom:8px;}
+  .empty-sub{font-size:13px;line-height:1.6;}
+  .error-box{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:12px;padding:16px 20px;color:#fca5a5;font-size:13px;display:none;margin-bottom:16px;gap:10px;align-items:flex-start;line-height:1.5;}
+
+  /* UPDATE BAR */
+  .update-bar{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:8px;margin-bottom:14px;}
+  .udot{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;}
+
+  /* TOAST */
+  .toast{position:fixed;bottom:24px;right:24px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:13px 18px;font-size:12px;display:flex;align-items:center;gap:10px;transform:translateY(80px);opacity:0;transition:all .3s;z-index:999;box-shadow:0 8px 32px rgba(0,0,0,.5);max-width:360px;}
+  .toast.show{transform:translateY(0);opacity:1;}
+
+  @media(max-width:640px){
+    header{flex-direction:column;gap:14px;align-items:flex-start;}
+    .stats{grid-template-columns:1fr 1fr;}
+    .card{grid-template-columns:36px 1fr;}
+    .cprice{display:none;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo">
+      <div class="logo-icon">⛽</div>
+      <div>
+        <div class="logo-text">Gaso<span>Check</span></div>
+        <div class="logo-sub">Datos oficiales del Ministerio · España</div>
+      </div>
+    </div>
+    <div class="live-badge">
+      <div class="live-dot"></div>
+      <span id="liveLabel">Listo</span>
+    </div>
+  </header>
+
+  <!-- LOCATION CARD -->
+  <div class="loc-card">
+    <div class="loc-label">📍 Ubicación</div>
+
+    <div class="search-wrap" id="searchWrap">
+      <input class="search-input" id="searchInput" type="text"
+        autocomplete="off" spellcheck="false"
+        placeholder="Escribe una calle, ciudad o código postal...">
+      <button class="search-clear" id="clearBtn" onclick="clearSearch()">✕</button>
+      <div class="autocomplete" id="acBox"></div>
+    </div>
+
+    <div class="loc-btns">
+      <button class="btn-geo" id="geoBtn" onclick="geoLocate()">📡 Usar GPS</button>
+      <button class="btn-secondary" onclick="ipLocate()">🌐 Ubicación por IP</button>
+    </div>
+
+    <div class="loc-status" id="locStatus">
+      Escribe una dirección o usa tu ubicación para empezar
+    </div>
+  </div>
+
+  <!-- FILTERS -->
+  <div class="filter-row">
+    <div class="chip active" data-fuel="g95" onclick="pickFuel(this)">🟢 Gasolina 95</div>
+    <div class="chip" data-fuel="g98" onclick="pickFuel(this)">🔵 Gasolina 98</div>
+    <div class="chip" data-fuel="goa" onclick="pickFuel(this)">⚫ Diésel A</div>
+    <div class="chip" data-fuel="gop" onclick="pickFuel(this)">🔶 Diésel+</div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:6px;">
+      <span style="font-size:11px;color:var(--muted)">📏</span>
+      <select class="radius-select" id="radiusSel" onchange="changeRadius()">
+        <option value="2">2 km</option>
+        <option value="5" selected>5 km</option>
+        <option value="10">10 km</option>
+        <option value="20">20 km</option>
+        <option value="50">50 km</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="error-box" id="errorBox">⚠️ <span id="errorMsg"></span></div>
+
+  <div class="stats" id="statsBar" style="display:none">
+    <div class="stat">
+      <div class="stat-lbl">Precio mínimo</div>
+      <div class="stat-val g" id="sMin">—</div>
+      <div class="stat-sub" id="sMinN">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-lbl">Precio medio</div>
+      <div class="stat-val o" id="sAvg">—</div>
+      <div class="stat-sub" id="sCount">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-lbl">Precio máximo</div>
+      <div class="stat-val r" id="sMax">—</div>
+      <div class="stat-sub" id="sMaxN">—</div>
+    </div>
+  </div>
+
+  <div class="update-bar" id="updateBar" style="display:none">
+    <div class="udot"></div>
+    <span id="updateTxt">—</span>
+  </div>
+
+  <div class="results-hd">
+    <div class="results-lbl" id="resultsLbl">Gasolineras cercanas</div>
+    <button class="sort-toggle" onclick="toggleSort()">⇅ ordenar por <u id="sortLbl">precio</u></button>
+  </div>
+
+  <div class="loading" id="loadingEl">
+    <div class="spinner"></div>
+    <div id="loadingMsg">Consultando la API del Ministerio...</div>
+    <div class="loading-sub">Esto puede tardar unos segundos</div>
+  </div>
+
+  <div class="list" id="cardsList">
+    <div class="empty">
+      <div class="empty-icon">⛽</div>
+      <div class="empty-title">Encuentra tu gasolinera más barata</div>
+      <div class="empty-sub">
+        Usa el GPS, detección por IP,<br>o escribe tu dirección en el campo de arriba
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"><span id="toastI"></span><span id="toastM"></span></div>
+
+<script>
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+const S = {
+  lat:null, lon:null,
+  fuel:'g95', radius:5, sortBy:'price',
+  stations:[], filtered:[],
+  updateTime:null,
+  acTimer:null, acFocus:-1,
+};
+
+const FUEL_MAP = {
+  g95:{ key:'Precio Gasolina 95 E5',  label:'G-95',    icon:'🟢' },
+  g98:{ key:'Precio Gasolina 98 E5',  label:'G-98',    icon:'🔵' },
+  goa:{ key:'Precio Gasoleo A',        label:'Diésel A',icon:'⚫' },
+  gop:{ key:'Precio Gasoleo Premium',  label:'Diésel+', icon:'🔶' },
+};
+
+// ─────────────────────────────────────────────
+// PREDICTIVE SEARCH  (Nominatim / OpenStreetMap)
+// ─────────────────────────────────────────────
+const inp    = document.getElementById('searchInput');
+const acBox  = document.getElementById('acBox');
+const clrBtn = document.getElementById('clearBtn');
+
+inp.addEventListener('input', () => {
+  const q = inp.value.trim();
+  clrBtn.style.display = q ? 'block' : 'none';
+  clearTimeout(S.acTimer);
+  if (q.length < 2) { closeAc(); return; }
+  acBox.innerHTML = '<div class="ac-loading">🔍 Buscando...</div>';
+  acBox.style.display = 'block';
+  S.acTimer = setTimeout(() => doSearch(q), 350);
+});
+
+inp.addEventListener('keydown', e => {
+  const items = acBox.querySelectorAll('.ac-item');
+  if (e.key === 'ArrowDown') { e.preventDefault(); moveFocus(items, 1); return; }
+  if (e.key === 'ArrowUp')   { e.preventDefault(); moveFocus(items,-1); return; }
+  if (e.key === 'Escape')    { closeAc(); return; }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (S.acFocus >= 0 && items[S.acFocus]) { items[S.acFocus].click(); }
+    else if (inp.value.trim().length >= 2)  { doSearch(inp.value.trim(), true); }
+  }
+});
+
+document.addEventListener('click', e => {
+  if (!document.getElementById('searchWrap').contains(e.target)) closeAc();
+});
+
+function moveFocus(items, d) {
+  if (items[S.acFocus]) items[S.acFocus].classList.remove('focused');
+  S.acFocus = Math.max(-1, Math.min(items.length - 1, S.acFocus + d));
+  if (S.acFocus >= 0) { items[S.acFocus].classList.add('focused'); items[S.acFocus].scrollIntoView({block:'nearest'}); }
+}
+
+async function doSearch(q, autoSelect=false) {
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&addressdetails=1&limit=7&countrycodes=es&accept-language=es`;
+    const r = await fetch(url, { headers:{ 'Accept-Language':'es', 'User-Agent':'GasoCheck/3.0' } });
+    const data = await r.json();
+
+    if (autoSelect && data.length) { pickResult(data[0]); return; }
+
+    if (!data.length) {
+      acBox.innerHTML = '<div class="ac-loading">Sin resultados para esa búsqueda</div>';
+      return;
+    }
+
+    S.acFocus = -1;
+    acBox.innerHTML = '';
+    acBox.style.display = 'block';
+
+    data.forEach(item => {
+      const parts = item.display_name.split(', ');
+      const name   = parts.slice(0, 2).join(', ');
+      const detail = parts.slice(2, 5).join(', ');
+      const icon   = placeIcon(item.type, item.class);
+
+      const el = document.createElement('div');
+      el.className = 'ac-item';
+      el.innerHTML = `
+        <div class="ac-icon">${icon}</div>
+        <div>
+          <div class="ac-name">${esc(name)}</div>
+          <div class="ac-detail">${esc(detail)}</div>
+        </div>`;
+      el.onclick = () => pickResult(item);
+      acBox.appendChild(el);
+    });
+  } catch(err) {
+    acBox.innerHTML = '<div class="ac-loading">Error al conectar con el buscador</div>';
+  }
+}
+
+function placeIcon(type, cls) {
+  if (['motorway','primary','secondary','residential','road','street','path'].includes(type)) return '🛣️';
+  if (['city','town'].includes(type)) return '🏙️';
+  if (['village','hamlet','locality'].includes(type)) return '🏘️';
+  if (type === 'postcode') return '📮';
+  if (['suburb','neighbourhood','quarter'].includes(type)) return '🏠';
+  if (cls === 'amenity') return '🏪';
+  return '📍';
+}
+
+function pickResult(item) {
+  S.lat = parseFloat(item.lat);
+  S.lon = parseFloat(item.lon);
+  const name = item.display_name.split(', ').slice(0,3).join(', ');
+  inp.value = name;
+  clrBtn.style.display = 'block';
+  closeAc();
+  setStatus(`📍 <b>${esc(name)}</b>`);
+  showToast('📍', name);
+  fetchStations();
+}
+
+function clearSearch() {
+  inp.value = '';
+  clrBtn.style.display = 'none';
+  closeAc();
+  inp.focus();
+}
+
+function closeAc() {
+  acBox.style.display = 'none';
+  S.acFocus = -1;
+}
+
+// ─────────────────────────────────────────────
+// GPS
+// ─────────────────────────────────────────────
+function geoLocate() {
+  if (!navigator.geolocation) {
+    showToast('❌','GPS no disponible en este navegador');
+    return;
+  }
+  const btn = document.getElementById('geoBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Obteniendo GPS...';
+  setStatus('Solicitando permiso de GPS...');
+
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      btn.disabled = false;
+      btn.textContent = '📡 Usar GPS';
+      S.lat = pos.coords.latitude;
+      S.lon = pos.coords.longitude;
+      const acc = Math.round(pos.coords.accuracy);
+      inp.value = `Mi ubicación GPS`;
+      clrBtn.style.display = 'block';
+      setStatus(`📡 GPS activo · precisión ±${acc}m`);
+      showToast('✅','Ubicación GPS obtenida');
+      fetchStations();
+    },
+    err => {
+      btn.disabled = false;
+      btn.textContent = '📡 Usar GPS';
+      const ERRS = {
+        1:'Permiso denegado. Activa la ubicación en tu navegador o usa las otras opciones.',
+        2:'No se pudo obtener la posición GPS.',
+        3:'Tiempo de espera agotado. Inténtalo de nuevo.',
+      };
+      const msg = ERRS[err.code] || 'Error GPS.';
+      setStatus('⚠️ ' + msg);
+      showError(msg);
+      showToast('⚠️', 'GPS denegado — prueba con IP o búsqueda manual');
+    },
+    { timeout:14000, enableHighAccuracy:true, maximumAge:30000 }
+  );
+}
+
+// ─────────────────────────────────────────────
+// IP GEOLOCATION  (sin permisos)
+// ─────────────────────────────────────────────
+async function ipLocate() {
+  setStatus('🌐 Detectando por IP...');
+  showToast('🌐','Detectando ubicación por IP...');
+  hideError();
+
+  const services = [
+    () => fetch('https://ipapi.co/json/').then(r=>r.json()).then(d=>({lat:d.latitude,lon:d.longitude,city:d.city})),
+    () => fetch('https://ip-api.com/json/?lang=es').then(r=>r.json()).then(d=>({lat:d.lat,lon:d.lon,city:d.city})),
+    () => fetch('https://freeipapi.com/api/json').then(r=>r.json()).then(d=>({lat:d.latitude,lon:d.longitude,city:d.cityName})),
+  ];
+
+  let result = null;
+  for (const svc of services) {
+    try {
+      const d = await svc();
+      if (d.lat && d.lon) { result = d; break; }
+    } catch(_) {}
+  }
+
+  if (!result) {
+    setStatus('❌ No se pudo detectar por IP. Escribe tu dirección arriba.');
+    showToast('❌','Error al detectar por IP');
+    showError('Los servicios de geolocalización por IP no respondieron. Escribe tu dirección manualmente.');
+    return;
+  }
+
+  S.lat = result.lat;
+  S.lon = result.lon;
+  inp.value = result.city || 'Ubicación por IP';
+  clrBtn.style.display = 'block';
+  setStatus(`🌐 IP localizada en <b>${esc(result.city||'tu zona')}</b> (precisión aproximada)`);
+  showToast('✅',`Por IP: ${result.city||'detectado'}`);
+  fetchStations();
+}
+
+// ─────────────────────────────────────────────
+// FETCH STATIONS — API Ministerio + proxies CORS
+// ─────────────────────────────────────────────
+async function fetchStations() {
+  if (!S.lat || !S.lon) return;
+  setLoading(true);
+  hideError();
+  S.stations = [];
+
+  // Step 1: get province
+  setText('loadingMsg','Identificando provincia...');
+  let provId = null;
+  try { provId = await getProvId(S.lat, S.lon); } catch(_) {}
+
+  const API_BASE = 'https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes';
+  const endpoint = provId
+    ? `${API_BASE}/EstacionesTerrestresFiltros/FiltroProvincia/${provId}`
+    : `${API_BASE}/EstacionesTerrestres`;
+
+  setText('loadingMsg', provId
+    ? `Cargando gasolineras de la provincia ${provId}...`
+    : 'Cargando todas las gasolineras de España...');
+
+  const PROXIES = [
+    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+    u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+    u => `https://thingproxy.freeboard.io/fetch/${u}`,
+  ];
+
+  let data = null;
+  let lastErr = 'desconocido';
+
+  for (const mkProxy of PROXIES) {
+    try {
+      setText('loadingMsg', 'Conectando con la API oficial...');
+      const ctrl = new AbortController();
+      const tid  = setTimeout(() => ctrl.abort(), 18000);
+      const res  = await fetch(mkProxy(endpoint), {
+        signal: ctrl.signal,
+        headers: { Accept: 'application/json' },
+      });
+      clearTimeout(tid);
+
+      if (!res.ok) { lastErr = `HTTP ${res.status}`; continue; }
+      const text = await res.text();
+      if (!text || text.trimStart().startsWith('<')) { lastErr = 'Proxy devolvió HTML'; continue; }
+
+      const parsed = JSON.parse(text);
+      if (parsed?.ListaEESSPrecio?.length) { data = parsed; break; }
+      lastErr = 'JSON vacío';
+    } catch(e) {
+      lastErr = e.name === 'AbortError' ? 'timeout' : e.message;
+    }
+  }
+
+  setLoading(false);
+
+  if (!data?.ListaEESSPrecio) {
+    showError(
+      `No se pudo obtener datos de la API del Ministerio (${lastErr}). ` +
+      `La API puede estar en mantenimiento. Inténtalo en unos minutos o prueba con otra ubicación.`
+    );
+    return;
+  }
+
+  S.stations   = data.ListaEESSPrecio;
+  S.updateTime = data.Fecha || new Date().toLocaleString('es-ES');
+  processAndRender();
+  showToast('✅', `${S.filtered.length} gasolineras encontradas`);
+}
+
+// Nominatim reverse → province MINETUR id
+async function getProvId(lat, lon) {
+  const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=es&zoom=10`;
+  const r = await fetch(url, { headers:{ 'User-Agent':'GasoCheck/3.0' } });
+  const j = await r.json();
+  const raw = normalize(
+    j.address?.county || j.address?.province ||
+    j.address?.state_district || j.address?.state || ''
+  );
+  return PROV[raw] || PROV[raw.split(' ')[0]] || PROV[raw.split('/')[0].trim()] || null;
+}
+
+function normalize(s) {
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
+}
+
+// ─────────────────────────────────────────────
+// HAVERSINE
+// ─────────────────────────────────────────────
+function hav(a,b,c,d){
+  const R=6371,dl=(c-a)*Math.PI/180,dg=(d-b)*Math.PI/180;
+  const x=Math.sin(dl/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dg/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+
+// ─────────────────────────────────────────────
+// PROCESS + RENDER
+// ─────────────────────────────────────────────
+function processAndRender() {
+  const fk = FUEL_MAP[S.fuel].key;
+  const parseP = v => {
+    if (!v || !v.trim()) return null;
+    const n = parseFloat(v.replace(',','.'));
+    return (isNaN(n) || n <= 0) ? null : n;
+  };
+
+  let list = S.stations.map(s => {
+    const la = parseFloat((s['Latitud']||'').replace(',','.'));
+    const lo = parseFloat((s['Longitud (WGS84)']||s['Longitud']||'').replace(',','.'));
+    const p  = parseP(s[fk]);
+    const d  = (la&&lo&&S.lat) ? hav(S.lat,S.lon,la,lo) : 9999;
+    return {...s, _p:p, _d:d, _la:la, _lo:lo};
+  }).filter(s => s._d <= S.radius && s._p !== null);
+
+  list.sort(S.sortBy === 'price' ? (a,b) => a._p-b._p : (a,b) => a._d-b._d);
+  S.filtered = list;
+
+  if (list.length) {
+    const ps  = list.map(s=>s._p);
+    const mn  = Math.min(...ps), mx=Math.max(...ps);
+    const avg = ps.reduce((a,b)=>a+b,0)/ps.length;
+    show('statsBar'); show('updateBar');
+    setText('sMin',mn.toFixed(3)+' €'); setText('sMinN',sName(list.find(s=>s._p===mn)?.['Rótulo']));
+    setText('sAvg',avg.toFixed(3)+' €'); setText('sCount',list.length+' gasolineras');
+    setText('sMax',mx.toFixed(3)+' €'); setText('sMaxN',sName(list.find(s=>s._p===mx)?.['Rótulo']));
+    setText('updateTxt','Datos del Ministerio · '+S.updateTime);
+    setText('liveLabel',list.length+' resultados');
+  }
+
+  const fuel = FUEL_MAP[S.fuel];
+  setText('resultsLbl',`${list.length} gasolineras · ${fuel.icon} ${fuel.label} · ${S.radius} km`);
+
+  const cont = document.getElementById('cardsList');
+  cont.innerHTML = '';
+
+  if (!list.length) {
+    cont.innerHTML = `<div class="empty"><div class="empty-icon">🔍</div><div class="empty-title">Sin resultados</div><div class="empty-sub">No hay gasolineras con ${fuel.label} en ${S.radius} km.<br>Amplía el radio o cambia el tipo de combustible.</div></div>`;
+    return;
+  }
+
+  const mn = Math.min(...list.map(s=>s._p));
+  const mx = Math.max(...list.map(s=>s._p));
+
+  list.slice(0,60).forEach((s,i) => {
+    const rc = i===0?'r1':i===1?'r2':i===2?'r3':'rN';
+    const pc = s._p===mn?'best':s._p===mx?'worst':'';
+    const df = s._p - mn;
+    const dfs= df<0.001?'✓ Más barata':`+${df.toFixed(3)} €/L`;
+    const dfc= df<0.001?'save':'extra';
+    const ds = s._d<1?`${Math.round(s._d*1000)} m`:`${s._d.toFixed(1)} km`;
+    const hr = (s['Horario']||'').replace(/L-D:/,'').split(';')[0].trim()||'—';
+    const gm = `https://www.google.com/maps/dir/?api=1&destination=${s._la},${s._lo}`;
+
+    const el = document.createElement('div');
+    el.className = `card ${rc}`;
+    el.style.animationDelay = `${i*30}ms`;
+    el.title = 'Abrir ruta en Google Maps';
+    el.innerHTML = `
+      <div class="rank">${i+1}</div>
+      <div class="cinfo">
+        <div class="cname">${esc(s['Rótulo']||'Sin nombre')}</div>
+        <div class="cmeta">
+          <span>📍 <b>${ds}</b></span>
+          <span>${esc(s['Municipio']||'')}</span>
+          <span title="${esc(s['Horario']||'')}">🕐 ${esc(hr)}</span>
+        </div>
+      </div>
+      <div class="cprice">
+        <div class="cprice-lbl">${fuel.label}</div>
+        <div class="cprice-val ${pc}">${s._p.toFixed(3)}</div>
+        <div class="cprice-diff ${dfc}">${dfs}</div>
+      </div>`;
+    el.onclick = () => window.open(gm,'_blank');
+    cont.appendChild(el);
+  });
+
+  if (list.length > 60) {
+    const n = document.createElement('div');
+    n.style.cssText='text-align:center;color:var(--muted);font-size:12px;padding:20px';
+    n.textContent=`Mostrando 60 de ${list.length}. Reduce el radio para ver menos.`;
+    cont.appendChild(n);
+  }
+}
+
+// ─────────────────────────────────────────────
+// UI HELPERS
+// ─────────────────────────────────────────────
+function pickFuel(el){
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active'); S.fuel=el.dataset.fuel;
+  if(S.stations.length) processAndRender();
+}
+function changeRadius(){ S.radius=+document.getElementById('radiusSel').value; if(S.stations.length) processAndRender(); }
+function toggleSort(){ S.sortBy=S.sortBy==='price'?'distance':'price'; setText('sortLbl',S.sortBy==='price'?'precio':'distancia'); if(S.filtered.length) processAndRender(); }
+function setLoading(v){ document.getElementById('loadingEl').style.display=v?'flex':'none'; document.getElementById('cardsList').style.display=v?'none':''; }
+function showError(m){ document.getElementById('errorBox').style.display='flex'; setText('errorMsg',m); }
+function hideError(){ document.getElementById('errorBox').style.display='none'; }
+function show(id){ document.getElementById(id).style.display=''; }
+function setText(id,t){ const e=document.getElementById(id); if(e) e.textContent=t; }
+function setStatus(h){ document.getElementById('locStatus').innerHTML=h; }
+function sName(n){ return (n||'').split(' ').slice(0,3).join(' '); }
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+let _tt;
+function showToast(i,m){ setText('toastI',i); setText('toastM',m); const t=document.getElementById('toast'); t.classList.add('show'); clearTimeout(_tt); _tt=setTimeout(()=>t.classList.remove('show'),3500); }
+
+// ─────────────────────────────────────────────
+// PROVINCE CODES  (Nominatim → MINETUR)
+// ─────────────────────────────────────────────
+const PROV = {
+  'alava':1,'araba':1,'albacete':2,'alicante':3,'alacant':3,'almeria':4,'avila':5,
+  'badajoz':6,'balears':7,'illes balears':7,'mallorca':7,'barcelona':8,'burgos':9,
+  'caceres':10,'cadiz':11,'castellon':12,'castello de la plana':12,'ciudad real':13,
+  'cordoba':14,'a coruna':15,'la coruna':15,'coruna':15,'cuenca':16,'girona':17,
+  'granada':18,'guadalajara':19,'guipuzcoa':20,'gipuzkoa':20,'huelva':21,'huesca':22,
+  'jaen':23,'leon':24,'lleida':25,'la rioja':26,'rioja':26,'lugo':27,'madrid':28,
+  'malaga':29,'murcia':30,'region de murcia':30,'navarra':31,'navarre':31,
+  'ourense':32,'orense':32,'asturias':33,'principado de asturias':33,'palencia':34,
+  'las palmas':35,'palmas':35,'gran canaria':35,'pontevedra':36,'salamanca':37,
+  'santa cruz de tenerife':38,'tenerife':38,'cantabria':39,'segovia':40,
+  'sevilla':41,'soria':42,'tarragona':43,'teruel':44,'toledo':45,
+  'valencia':46,'comunitat valenciana':46,'valladolid':47,'vizcaya':48,'bizkaia':48,
+  'zamora':49,'zaragoza':50,'ceuta':51,'melilla':52,
+};
+</script>
+</body>
+</html>
